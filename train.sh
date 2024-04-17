@@ -1,0 +1,25 @@
+MASTER_ADDR="localhost" MASTER_PORT="8886" NODE_RANK="0" WORLD_SIZE="1" CUDA_VISIBLE_DEVICES=0,1 \
+  rdcd/train.py --nodes=1 --gpus=2 \
+  --train_dataset_path=/data/DISC/images/final_queries \
+  --val_dataset_path=/data/DISC/val_images \
+  --query_dataset_path=/data/DISC/images/final_queries \
+  --ref_dataset_path=/data/DISC/images/references \
+  --augmentations=ADVANCED --mixup=false \
+  --batch_size 256 \
+  --base_learning_rate 1.0 \
+  --output_path=./ \
+  --backbone=TV_EFFICIENTNET_B0 \
+  --ckpt=./weights/sscd_disc_mixup.torchvision.pt \
+  --workers 16 \
+  --temp 0.07 \
+  --m 0.99 \
+  --c 0.6 \
+  --moco True \
+  --kld True \
+  --mse False \
+  --moco_lambda 1.0 \
+  --kld_lambda 1.0 \
+  --mse_lambda 100.0 \
+  --queue_size 65536 \
+  --dims 512 \
+  --dim 64
