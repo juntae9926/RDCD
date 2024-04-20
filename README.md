@@ -18,8 +18,15 @@ The official repository for Relational Self-supervised Distillation with Compact
 Detection 2023)
 - CD10K(copydays + 10k distractors)
 
-## techniques
-- Hard-negative
+## Requirements
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+(we use /torch 1.6.0 /torchvision 0.7.0 /timm 0.3.2 /cuda 10.1 / 16G or 32G V100 for training and evaluation.
+Note that we use torch.cuda.amp to accelerate speed of training which requires pytorch >=1.6)
+```
 
 ## Teacher Models(Pretrained)
 - SSCD: ResNet-50, ResNeXt101
