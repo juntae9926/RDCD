@@ -1,21 +1,25 @@
 
 
 # Relational Self-supervised Distillation with Compact Descriptors for Image Copy Detection.
+The official repository for Relational Self-supervised Distillation with Compact Descriptors for Image Copy Detection.
+
+## Pipeline
+
+
 
 ## Implementation
-- This code is implemented with Pytorch Lightning
+- 
+- This code is implemented using Pytorch Lightning
 
 
 ## Datasets used
 - DISC (Facebook Image Similarity Challenge 2021)
 - NDEC (A Benchmark and Asymmetrical-Similarity Learning for Practical Image Copy
 Detection 2023)
-- Copydays
+- CD10K(copydays + 10k distractors)
 
-## Unsupervised Knowledge Distillation
-- similarity distillation 
-- KoLeo regularization
-- DirectCLR contrastive learning
+## techniques
+- Hard-negative
 
 ## Teacher Models(Pretrained)
 - SSCD: ResNet-50, ResNeXt101
@@ -50,14 +54,6 @@ sh train.sh
 sh disc_eval.sh
 ```
 
-The codebase is built upon "[SSCD](https://cvpr2022.thecvf.com/)".
+## Acknowledgement
 
-## Citation
-```
-@article{juntae2023,
-  title={Self-supervised Knowledge Distillation using Dynamic Memory Bank for Image Copy Detection},
-  author={Juntae Kim},
-  journal={Master's Thesis},
-  year={2023}
-}
-```
+Codebase from "[SSCD](https://github.com/facebookresearch/sscd-copy-detection)" , [pytorch-image-models](https://github.com/rwightman/pytorch-image-models)
