@@ -113,68 +113,9 @@ class Backbone(enum.Enum):
     def add_arguments(cls, parser: argparse.ArgumentParser):
         parser = parser.add_argument_group("Model")
         parser.add_argument(
-            "--backbone", default="TV_EFFICIENTNET_B0", choices=[b.name for b in Backbone]
+            "--backbone", default="TV_EFFICIENTNET_B0"
         )
         parser.add_argument("--kd_dim", default=512, type=int)
         parser.add_argument("--dim", type=int)
         parser.add_argument("--pool_param", default=3, type=float)
 
-#     def build(self, kd_dim: int):
-#         impl = self.value[2]
-#         if impl == Implementation.CLASSY_VISION:
-#             model = build_model({"name": self.value[0]})
-#             return model.classy_model
-#         if impl == Implementation.TORCHVISION:
-#             return self.value[0](num_classes=kd_dim, zero_init_residual=True)
-#         raise AssertionError("Model implementation not handled: %s" % (self.name,))
-
-
-# class Model(nn.Module):
-#     def __init__(self, backbone: str, kd_dim: int, pool_param: float):
-#         super().__init__()
-#         self.backbone_type = Backbone[backbone]
-#         self.backbone = self.backbone_type.build(dims=kd_dim)
-#         impl = self.backbone_type.value[2]
-#         if impl == Implementation.CLASSY_VISION:
-#             self.embeddings = nn.Sequential(
-#                 GlobalGeMPool2d(pool_param),
-#                 nn.Linear(self.backbone_type.value[1], kd_dim),
-#                 L2Norm(),
-#             )
-#         elif backbone == "TV_RESNET50":
-#             self.backbone.avgpool = GlobalGeMPool2d(pool_param)
-#             self.backbone.fc = nn.Identity()
-#             self.embeddings = nn.Sequential(
-#                     nn.Linear(self.backbone_type.value[1], kd_dim),
-#                     L2Norm(),
-#                 )
-#         elif backbone == 'TV_EFFICIENTNET_B0':
-#             self.backbone.avgpool = GlobalGeMPool2d(pool_param)
-#             self.backbone.fc = nn.Identity()
-#             self.embeddings = L2Norm()
-            
-#         elif backbone == 'TV_MOBILENETV3':
-#             self.backbone.avgpool = GlobalGeMPool2d(pool_param)
-#             self.embeddings = L2Norm()
-
-#         elif backbone == 'TV_REGNET_Y_800MF':
-#             self.backbone.avgpool = GlobalGeMPool2d(pool_param)
-#             self.backbone.fc = nn.Identity()
-#             self.embeddings = nn.Sequential(
-#                 nn.Linear(784, 512),
-#                 L2Norm()
-#             )
-
-#     def forward(self, x):
-#         x = self.backbone(x)
-#         return self.embeddings(x)
-
-    # @classmethod
-    # def add_arguments(cls, parser: argparse.ArgumentParser):
-    #     parser = parser.add_argument_group("Model")
-    #     parser.add_argument(
-    #         "--backbone", default="TV_RESNET50", choices=[b.name for b in Backbone]
-    #     )
-    #     parser.add_argument("--kd_dim", default=512, type=int)
-    #     parser.add_argument("--dim", type=int)
-    #     parser.add_argument("--pool_param", default=3, type=float)

@@ -26,7 +26,7 @@ from torchvision.datasets.folder import default_loader
 import torch.nn.functional as F
 
 from rdcd.datasets.disc import DISCEvalDataset, DISCTrainDataset, DISCTestDataset
-from sscd.datasets.ndec import NDECEvalDataset, NDECTrainDataset, NDECTestDataset
+from rdcd.datasets.ndec import NDECEvalDataset, NDECTrainDataset, NDECTestDataset
 from rdcd.datasets.image_folder import ImageFolder
 from rdcd.lib.distributed_util import cross_gpu_batch
 from rdcd.transforms.repeated_augmentation import RepeatedAugmentationTransform
