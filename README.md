@@ -5,7 +5,7 @@ The official repository for Relational Self-supervised Distillation with Compact
 
 ## Pipeline
 
-
+![framework](figs/framework.png)
 
 ## Implementation
 - 
