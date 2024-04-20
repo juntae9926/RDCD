@@ -8,7 +8,6 @@ The official repository for Relational Self-supervised Distillation with Compact
 ![framework](figs/framework.png)
 
 ## Implementation
-- 
 - This code is implemented using Pytorch Lightning
 
 
@@ -44,7 +43,7 @@ docker build -t rdcd .
 docker run --name rdcd -it --ipc=host --runtime=nvidia rdcd
 ```
 
-### Library 설치
+### Library install
 ```
 pip install -c pytorch faiss-gpu
 pip install Pillow==9.5.0
