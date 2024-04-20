@@ -13,13 +13,11 @@ MASTER_ADDR="localhost" MASTER_PORT="8886" NODE_RANK="0" WORLD_SIZE="1" CUDA_VIS
   --workers 16 \
   --temp 0.07 \
   --m 0.99 \
-  --c 0.6 \
   --moco True \
   --kld True \
-  --mse False \
   --moco_lambda 1.0 \
   --kld_lambda 1.0 \
-  --mse_lambda 100.0 \
   --queue_size 65536 \
-  --dims 512 \
+  --hn_lambda 5 \
+  --kd_dim 512 \
   --dim 64

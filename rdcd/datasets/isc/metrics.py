@@ -158,41 +158,6 @@ def sanitize_predictions(predictions: List[PredictedMatch]) -> List[PredictedMat
     check_duplicates(predictions)
     return predictions
 
-def extract_positive_and_nearest_negative_scores(probas_pred, y_true):
-    positive_scores = []
-    nearest_negative_scores = []
-    Negative_scores = []
-
-    # 각 쿼리에 대한 점수를 처리합니다.
-    for i in range(0, len(probas_pred), 5):  # 각 쿼리당 10개씩 점수가 있다고 가정
-        scores_for_query = probas_pred[i:i+5]  # 현재 쿼리에 대한 10개의 점수
-        true_labels_for_query = y_true[i:i+5]  # 현재 쿼리에 대한 10개의 정답 레이블
-
-        # Positive sample의 점수를 찾습니다.
-        if np.any(true_labels_for_query):
-            positive_score = scores_for_query[true_labels_for_query.argmax()]
-            positive_scores.append(positive_score)
-
-            # 가장 높은 Negative sample의 점수를 찾습니다. (정렬되어 있으므로, positive를 제외한 첫 번째 점수가 됩니다.)
-            negative_scores = np.delete(scores_for_query, true_labels_for_query.argmax())
-            if negative_scores.size > 0:  # Negative sample이 존재하는 경우
-                nearest_negative_scores.append(negative_scores.max())
-                Negative_scores.append(negative_scores.mean())
-            else:  # 모든 후보가 Positive인 드문 경우 처리
-                nearest_negative_scores.append(np.nan)
-                Negative_scores.append(np.nan)
-            #import pdb;pdb.set_trace()
-        else:
-            # 정답이 없는 경우는 무시하거나, 다른 방식으로 처리할 수 있습니다.
-            continue
-
-    return np.array(positive_scores), np.array(nearest_negative_scores), np.array(Negative_scores)
-
-def make_npy(positive_sim, nearest_neg_sim, neg_sim):
-    # 결과를 npy 파일로 저장
-    np.save('/user/appendix/positive_scores.npy', positive_sim)
-    np.save('/user/appendix/nearest_negative_scores.npy', nearest_neg_sim)
-    np.save('/user/appendix/neg_scores.npy', neg_sim)
 
 def to_arrays(gt_matches: List[GroundTruthMatch], predictions: List[PredictedMatch]):
     """Convert from list of matches to arrays"""
@@ -200,9 +165,6 @@ def to_arrays(gt_matches: List[GroundTruthMatch], predictions: List[PredictedMat
     gt_set = {astuple(g) for g in gt_matches}
     probas_pred = np.array([p.score for p in predictions])
     y_true = np.array([(p.query, p.db) in gt_set for p in predictions], dtype=bool)
-    positive_sim, nearest_neg_sim, neg_sim = extract_positive_and_nearest_negative_scores(probas_pred, y_true)
-    import pdb;pdb.set_trace()
-    make_npy(positive_sim, nearest_neg_sim, neg_sim)
     return y_true, probas_pred
 
 
@@ -229,27 +191,13 @@ def find_tp_ranks(
             ranks.append(rank)
     return np.array(ranks)
 
-def save_predictions(predictions):
-    import pandas as pd
-    data = {
-    "query": [pm.query for pm in predictions],
-    "db": [pm.db for pm in predictions],
-    "score": [pm.score for pm in predictions]
-    }
 
-    df = pd.DataFrame(data)
-
-    # DataFrame을 CSV 파일로 저장
-    df.to_csv("/user/appendix/predictions.csv", index=False)
 
 
 def evaluate(
     gt_matches: List[GroundTruthMatch], predictions: List[PredictedMatch]
 ) -> Metrics:
     predictions = sanitize_predictions(predictions)
-    import pdb;pdb.set_trace()
-    save_predictions(predictions)
-    import pdb;pdb.set_trace()
     y_true, probas_pred = to_arrays(gt_matches, predictions)
     p, r, t = precision_recall(y_true, probas_pred, len(gt_matches))
     ap = average_precision(r, p)

@@ -10,3 +10,4 @@ numpy
 tensorboard
 scipy
 timm
+Pillow==9.5.0

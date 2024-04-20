@@ -26,10 +26,11 @@ from torchvision.datasets.folder import default_loader
 import torch.nn.functional as F
 
 from rdcd.datasets.disc import DISCEvalDataset, DISCTrainDataset, DISCTestDataset
+from sscd.datasets.ndec import NDECEvalDataset, NDECTrainDataset, NDECTestDataset
 from rdcd.datasets.image_folder import ImageFolder
 from rdcd.lib.distributed_util import cross_gpu_batch
 from rdcd.transforms.repeated_augmentation import RepeatedAugmentationTransform
-from rdcd.models.model import Model, TeacherNetwork
+from rdcd.models.model import Backbone, TeacherNetwork
 from rdcd.transforms.settings import AugmentationSetting
 from rdcd.lib.util import call_using_args, parse_bool
 from rdcd.lib.pbank import Pbank
@@ -104,26 +105,12 @@ def add_train_args(parser: ArgumentParser, required=True):
     parser.add_argument("--m", default=0.99, type=float)
     parser.add_argument("--moco_lambda", default=0.1, type=float)
     parser.add_argument("--kld_lambda", default=1, type=float)
-    parser.add_argument("--mse_lambda", default=100.0, type=float)
 
     parser.add_argument("--moco", default=False, type=parse_bool)
     parser.add_argument("--kld", default=False, type=parse_bool)
-    parser.add_argument("--mse", default=False, type=parse_bool)
+    parser.add_argument("--hn_lambda", default=5, type=int, required=True)
 
-    # pair transformation params
-    parser.add_argument('--pmf', default='beta', type=str, choices=['beta', 'uniform', 'scalar']) # 1.6
-    parser.add_argument('--pos_alpha', type=float) # 2.0
-    parser.add_argument('--pos_beta', type=float) # 2.0
-    parser.add_argument('--neg_alpha', type=float) # 1.6
-    parser.add_argument('--post_norm', default=True, type=parse_bool) # 1.6
 
-    # hyperbolic params
-    parser.add_argument('--c', default=0.6, type=float)
-    parser.add_argument('--train_x', default=False, type=parse_bool)
-    parser.add_argument('--train_c', default=False, type=parse_bool)
-    parser.add_argument('--decoupled', default=False, type=parse_bool)
-    parser.add_argument('--theta', type=float) # 1.0
-    
 
 def add_data_args(parser, required=True):
     parser = parser.add_argument_group("Data")
@@ -135,9 +122,121 @@ def add_data_args(parser, required=True):
 
 
 parser = ArgumentParser()
-Model.add_arguments(parser)
+Backbone.add_arguments(parser)
 add_train_args(parser)
 add_data_args(parser)
+
+class NDECData(pl.LightningDataModule):
+    """A data module describing datasets used during training."""
+
+    def __init__(
+        self,
+        *,
+        train_dataset_path,
+        val_dataset_path,
+        query_dataset_path, 
+        ref_dataset_path,
+        train_batch_size,
+        augmentations: AugmentationSetting,
+        train_image_size=224,
+        val_image_size=288,
+        val_batch_size=64,
+        workers=28,
+    ):
+        super().__init__()
+        self.train_batch_size = train_batch_size
+        self.val_batch_size = val_batch_size
+        self.query_dataset_path = query_dataset_path
+        self.ref_dataset_path = ref_dataset_path
+        self.train_dataset_path = train_dataset_path
+        self.val_dataset_path = val_dataset_path
+        self.workers = workers
+
+        self.train_dataset = NDECTrainDataset(
+                                train_dataset_path,
+                                query_dataset_path, 
+                                ref_dataset_path,
+                                augmentations=augmentations,
+                                supervised=False
+                            )
+        if val_dataset_path:
+            self.val_dataset = self.make_validation_dataset(
+                path=self.val_dataset_path,
+                size=val_image_size,
+            )
+        else:
+            self.val_dataset = None
+        
+        self.loader = default_loader
+    
+    @classmethod
+    def make_validation_dataset(
+        cls,
+        path,
+        size=288,
+        include_train=False,
+        preserve_aspect_ratio=False,
+    ):
+        transforms = build_transforms(
+            [
+                {
+                    "name": "Resize",
+                    "size": size if preserve_aspect_ratio else [size, size],
+                },
+                {"name": "ToTensor"},
+                {
+                    "name": "Normalize",
+                    "mean": [0.485, 0.456, 0.406],
+                    "std": [0.229, 0.224, 0.225],
+                },
+            ]
+        )
+        return NDECEvalDataset(path, transform=transforms, include_train=include_train)
+
+    @classmethod
+    def make_test_dataset(
+        cls,
+        path,
+        size=288,
+        include_train=True,
+        preserve_aspect_ratio=False,
+    ):
+        transforms = build_transforms(
+            [
+                {
+                    "name": "Resize",
+                    "size": size if preserve_aspect_ratio else [size, size],
+                },
+                {"name": "ToTensor"},
+                {
+                    "name": "Normalize",
+                    "mean": [0.485, 0.456, 0.406],
+                    "std": [0.229, 0.224, 0.225],
+                },
+            ]
+        )
+        return NDECTestDataset(path, transform=transforms, include_train=include_train)
+
+
+    def train_dataloader(self):
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.train_batch_size,
+            num_workers=self.workers,
+            persistent_workers=True,
+            shuffle=True,
+            drop_last=True,
+        )
+
+    def val_dataloader(self):
+        if not self.val_dataset:
+            return None
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.val_batch_size,
+            num_workers=self.workers,
+            persistent_workers=True,
+        )
 
 
 class DISCData(pl.LightningDataModule):
@@ -258,8 +357,7 @@ class RDCD(pl.LightningModule):
     def __init__(self, args, train_steps: int):
         super().__init__()
         self.save_hyperparameters()
-        self.model = MoCo(args=args, base_encoder=efficientnet_b0, m=args.m, T=args.temp, \
-                          pmf=args.pmf, pos_alpha=args.pos_alpha, pos_beta=args.pos_beta, neg_alpha=args.neg_alpha, post_norm=args.post_norm, theta=args.theta)
+        self.model = MoCo(args=args, base_encoder=efficientnet_b0, m=args.m, T=args.temp)
 
         self.teacher = TeacherNetwork(args)
         state_dict = torch.load(args.ckpt)
@@ -300,19 +398,15 @@ class RDCD(pl.LightningModule):
         self.weight_decay = args.weight_decay
         self.momentum = args.momentum
         self.train_steps = train_steps
-        self.pos_alpha = args.pos_alpha
-        self.neg_alpha = args.neg_alpha
 
         self.moco_lambda = args.moco_lambda
         self.kld_lambda = args.kld_lambda
-        self.mse_lambda = args.mse_lambda
+        self.hn_lambda = args.hn_lambda
 
         self.moco = args.moco
-        self.mse = args.mse
+        self.kd_dim = args.kd_dim
         if args.kld:
-            self.kld = Pbank(teacher_feats_dim=512, queue_size=args.queue_size, T=0.04)
-            #self.kld = Pbank(teacher_feats_dim=1536, queue_size=args.queue_size, T=0.04)
-            #self.kld = Pbank(teacher_feats_dim=1024, queue_size=args.queue_size, T=0.04)
+            self.kld = Pbank(teacher_feats_dim=self.kd_dim, queue_size=args.queue_size, T=0.04)
         else:
             self.kld = False
 
@@ -325,26 +419,8 @@ class RDCD(pl.LightningModule):
             feat_s_q, emb_s_q, loss, stats = self.model(im_q=query, im_k=key)
 
         return feat_t_q, feat_s_q, loss, stats
-    #no projection
-    # def forward(self, query, key=None):
-    #     if not self.training:
-    #         emb_s_q = self.model(query, eval=True)
-    #         return emb_s_q
-    #     else:
-    #         emb_t_q = self.teacher(query)
-    #         emb_s_q_euc, emb_s_q, loss, stats = self.model(im_q=query, im_k=key)
-
-    #     return emb_t_q, emb_s_q_euc, emb_s_q, loss, stats
 
     def configure_optimizers(self):
-        # optimizer = LARS(
-        #     self.parameters(),
-        #     lr=self.lr,
-        #     weight_decay=self.weight_decay,
-        #     momentum=self.momentum,
-        #     trust_coefficient=0.001,
-        #     eps=1e-8,
-        # )
         optimizer = torch.optim.SGD(
             self.parameters(),
             lr=self.lr,
@@ -370,7 +446,6 @@ class RDCD(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         query, key = batch["input0"], batch["input1"]
         feat_t, feat_s, moco_loss, stats = self(query, key)
-        # feat_s, moco_loss, stats = self(query, key)
         
         total_loss = 0.0
 
@@ -378,25 +453,11 @@ class RDCD(pl.LightningModule):
             moco_loss = moco_loss * self.moco_lambda
             self.log("moco_loss", moco_loss, on_step=True, on_epoch=True, prog_bar=True)
             total_loss += moco_loss
-            
-        if self.mse:
-            mse_loss = torch.nn.MSELoss(reduction='mean')(feat_s, feat_t) * self.mse_lambda
-            total_loss += mse_loss 
-            self.log("mse_loss", mse_loss, on_step=True, on_epoch=True, prog_bar=True)
 
         if self.kld:
             kld_loss = self.kld(feat_t, feat_s) * self.kld_lambda
             total_loss += kld_loss
             self.log("kld_loss", kld_loss, on_step=True, on_epoch=True, prog_bar=True)
-
-            # z1, z2 = F.normalize(feat_t, dim=0), F.normalize(feat_s, dim=0)
-            # correlation_matrix = torch.mm(z1.T, z2)
-            # lambda_param = 5e-3
-            # on_diag = torch.diagonal(correlation_matrix).add_(-1).pow_(2).sum()
-            # off_diag = self.off_diagonal(correlation_matrix).pow_(2).sum()
-            # kld_loss = on_diag + lambda_param * off_diag
-            # total_loss += kld_loss * self.kld_lambda
-            # self.log("kld_loss", kld_loss, on_step=True, on_epoch=True, prog_bar=True)
 
        
         self.log_dict(stats, on_step=True, on_epoch=True)
@@ -404,40 +465,11 @@ class RDCD(pl.LightningModule):
 
         return total_loss
 
-    # #no projection
-    # def training_step(self, batch, batch_idx):
-    #     query, key = batch["input0"], batch["input1"]
-    #     #embeddings_t, embeddings_euc, embeddings, moco_loss, stats = self(query, key)
-    #     embeddings_t, embeddings_euc = self(query, key)
-
-    #     total_loss = 0.0
-
-    #     if self.moco:
-    #         moco_loss = moco_loss * self.moco_lambda
-    #         self.log("moco_loss", moco_loss, on_step=True, on_epoch=True, prog_bar=True)
-    #         total_loss += moco_loss
-            
-    #     if self.mse:
-    #         mse_loss = torch.nn.MSELoss(reduction='mean')(embeddings, embeddings_t) * self.mse_lambda
-    #         total_loss += mse_loss 
-    #         self.log("mse_loss", mse_loss, on_step=True, on_epoch=True, prog_bar=True)
-
-    #     if self.kld:
-    #         kld_loss = self.kld(embeddings_t, embeddings_euc) * self.kld_lambda
-    #         total_loss += kld_loss
-    #         self.log("kld_loss", kld_loss, on_step=True, on_epoch=True, prog_bar=True)
-       
-    #     self.log_dict(stats, on_step=True, on_epoch=True)
-    #     self.log("total_loss", total_loss, on_step=True, on_epoch=True, prog_bar=True)
-
-    #     return total_loss
-
     def validation_step(self, batch, batch_idx):
         input = batch["input"]
         metadata_keys = ["image_num", "split", "instance_id"]
         batch = {k: v for (k, v) in batch.items() if k in metadata_keys}
         batch["embeddings"] = self(input)
-        #print(self(input).shape)
         return batch
 
     def validation_epoch_end(self, outputs):
@@ -522,12 +554,6 @@ def main(args):
             f"Global batch size ({args.batch_size}) must be a multiple of "
             f"the number of GPUs ({world_size})."
         )
-    # checkpoint_callback = ModelCheckpoint(
-    #     dirpath='./checkpoint/',
-    #     filename='{epoch:02d}-{uAP:.3f}',
-    #     every_n_epochs=1,
-    #     save_top_k=-1
-    # )
     data = DISCData(
         train_dataset_path=args.train_dataset_path,
         val_dataset_path=args.val_dataset_path,
@@ -551,7 +577,6 @@ def main(args):
             max_epochs=args.epochs,
             sync_batchnorm=args.sync_bn,
             default_root_dir=args.output_path,
-            #strategy='ddp',
             strategy="ddp_find_unused_parameters_false",
             check_val_every_n_epoch=1,
             log_every_n_steps=1,

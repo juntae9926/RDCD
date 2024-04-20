@@ -8,7 +8,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from torch.distributions.beta import Beta
 from rdcd.models.model import get_encoder
 from rdcd.lib.util import call_using_args
 
@@ -18,8 +17,7 @@ class MoCo(nn.Module):
     https://arxiv.org/abs/1911.05722
     """
 
-    def __init__(self, args, base_encoder, K=65536, m=0.99, T=0.07, pmf='beta', pos_alpha=None, pos_beta=None, neg_alpha=None, \
-                 c=0.6, train_x=False, train_c=False, decoupled=False, theta=None, post_norm=True):
+    def __init__(self, args, base_encoder, K=65536, m=0.99, T=0.07):
         """
         dim: feature dimension (default: 128)
         K: queue size; number of negative keys (default: 65536)
@@ -32,15 +30,8 @@ class MoCo(nn.Module):
         self.m = m
         self.T = T
 
-        self.pmf = pmf
-        self.pos_alpha = pos_alpha
-        self.pos_beta = pos_beta
-        self.neg_alpha = neg_alpha
-
         self.eps = 1e-5
-        self.decoupled = decoupled
-        self.theta = theta
-        self.post_norm = post_norm
+        self.hn_lambda = args.hn_lambda
 
         # create the encoders
         # num_classes is the output fc dimension
@@ -54,7 +45,6 @@ class MoCo(nn.Module):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
 
-        self.koleo_loss = KoLeoLoss()
         
         # create the queue
         self.register_buffer("queue", torch.randn(args.dim, K))
@@ -152,13 +142,8 @@ class MoCo(nn.Module):
         # compute query features
         feat_q, q = self.encoder_q(im_q)  # queries: NxC
         # q = nn.functional.normalize(q, dim=1)
-        if self.theta:
-            if self.decoupled:
-                q = self.decouple_norm_from_direction(q)
-            q = self.tp(q)
 
         if eval:
-            #return feat_q
             return q
 
 
@@ -176,50 +161,9 @@ class MoCo(nn.Module):
             
         queue = self.queue.clone().detach()
 
-        # # for positives pairs
-        # if self.pos_alpha:
-        #     if self.pmf == 'beta':
-        #         distribution = Beta(self.pos_alpha, self.pos_beta)
-        #         pos_lambdas = distribution.sample(q.shape).cuda()
-        #     elif self.pmf == 'uniform':
-        #         pos_lambdas = torch.FloatTensor(np.random.rand(q.shape)).cuda()
-        #     else:
-        #         pos_lambdas = torch.FloatTensor(np.random.rand(q.shape[0])).cuda()
-        #         pos_lambdas = pos_lambdas.view(q.shape[0], 1)
 
-        #     pos_lambdas += 1
-        #     q_mix = pos_lambdas * q + (1 - pos_lambdas) * k
-        #     k_mix = pos_lambdas * k + (1 - pos_lambdas) * q
-        #     q, k = q_mix, k_mix
-
-        # if self.post_norm:
-        #     q, k = F.normalize(q, dim=1), F.normalize(k, dim=1)
-
-
-        # # # for negatives pairs
-        # if self.neg_alpha:
-        #     if self.pmf == 'beta':
-        #         distribution = Beta(self.neg_alpha, self.neg_alpha)
-        #         neg_lambdas = distribution.sample(queue.shape).cuda()
-        #     elif self.pmf == 'uniform':
-        #         neg_lambdas = torch.FloatTensor(np.random.rand(queue.shape)).cuda()
-        #     else:
-        #         neg_lambdas = torch.FloatTensor(np.random.rand(queue.shape[0])).cuda()
-        #         neg_lambdas = neg_lambdas.view(queue.shape[0], 1)
-
-        #     indices = torch.randperm(queue.shape[0]).cuda()
-        #     queue = neg_lambdas * queue + (1 - neg_lambdas) * queue[indices]
-
-        #     if self.post_norm:
-        #         queue = F.normalize(queue, dim=1)
-
-        if not self.theta:
-            l_pos = torch.einsum("nc,nc->n", [q, k]).unsqueeze(-1) # euc
-            l_neg = torch.einsum("nc,ck->nk", [q, queue]) # euc
-        else:
-            k = self.tp(k)
-            l_pos = -self.hyperbolic_dis(q, k) # hyp
-            l_neg = -self.hyperbolic_dis(q.unsqueeze(1), queue.T.unsqueeze(0)).squeeze()
+        l_pos = torch.einsum("nc,nc->n", [q, k]).unsqueeze(-1) # euc
+        l_neg = torch.einsum("nc,ck->nk", [q, queue]) # euc
 
 
         # logits: Nx(1+K)
@@ -236,132 +180,19 @@ class MoCo(nn.Module):
 
         moco_loss = self.loss(logits, labels)
         max_non_match_sim = torch.max(l_neg, dim=1)[0] # shape (256, 65536) -> (256,)
-        hardneg_loss = -(1-max_non_match_sim).clamp(min=1e-3).log().mean()
-        #print(hardneg_loss)
-        loss = moco_loss + hardneg_loss * 5
-        #loss = moco_loss
+        hardneg_loss = -(1-max_non_match_sim).clamp(min=1e-3).log().mean() * self.hn_lambda
+        loss = moco_loss + hardneg_loss
         stats = {
                     "positive_sim": l_pos.mean(),
                     "negative_sim": l_neg.mean(),
                     "nearest_negative_sim": torch.mean(torch.max(l_neg, dim=1)[0]),
                     "center_l2_norm": q.mean(dim=0).pow(2).sum().sqrt(),
                     "Moco loss": moco_loss,
-                    "Hardneg loss": hardneg_loss*5,
+                    "Hardneg loss": hardneg_loss,
                 }
         
         return feat_q, q, loss, stats
 
-    # def forward(self, im_q, im_k=None, eval=False):
-    #     """
-    #     Input:
-    #         im_q: a batch of query images
-    #         im_k: a batch of key images
-    #     Output:
-    #         logits, targetss
-    #     """
-
-    #     # compute query features
-    #     q = self.encoder_q(im_q)  # queries: NxC
-    #     euc_q = q.clone()
-    #     # q = nn.functional.normalize(q, dim=1)
-    #     if self.theta:
-    #         if self.decoupled:
-    #             q = self.decouple_norm_from_direction(q)
-    #         q = self.tp(q)
-
-    #     if eval:
-    #         return q
-
-    #     # compute key features
-    #     with torch.no_grad():  # no gradient to keys
-    #         self._momentum_update_key_encoder()  # update the key encoder
-
-    #         # shuffle for making use of BN
-    #         im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
-
-    #         k = self.encoder_k(im_k)  # keys: NxC
-    #         # k = nn.functional.normalize(k, dim=1)
-    #         k = self._batch_unshuffle_ddp(k, idx_unshuffle)
-            
-    #     queue = self.queue.clone().detach()
-
-    #     # # for positives pairs
-    #     # if self.pos_alpha:
-    #     #     if self.pmf == 'beta':
-    #     #         distribution = Beta(self.pos_alpha, self.pos_beta)
-    #     #         pos_lambdas = distribution.sample(q.shape).cuda()
-    #     #     elif self.pmf == 'uniform':
-    #     #         pos_lambdas = torch.FloatTensor(np.random.rand(q.shape)).cuda()
-    #     #     else:
-    #     #         pos_lambdas = torch.FloatTensor(np.random.rand(q.shape[0])).cuda()
-    #     #         pos_lambdas = pos_lambdas.view(q.shape[0], 1)
-
-    #     #     pos_lambdas += 1
-    #     #     q_mix = pos_lambdas * q + (1 - pos_lambdas) * k
-    #     #     k_mix = pos_lambdas * k + (1 - pos_lambdas) * q
-    #     #     q, k = q_mix, k_mix
-
-    #     # if self.post_norm:
-    #     #     q, k = F.normalize(q, dim=1), F.normalize(k, dim=1)
-
-
-    #     # # # for negatives pairs
-    #     # if self.neg_alpha:
-    #     #     if self.pmf == 'beta':
-    #     #         distribution = Beta(self.neg_alpha, self.neg_alpha)
-    #     #         neg_lambdas = distribution.sample(queue.shape).cuda()
-    #     #     elif self.pmf == 'uniform':
-    #     #         neg_lambdas = torch.FloatTensor(np.random.rand(queue.shape)).cuda()
-    #     #     else:
-    #     #         neg_lambdas = torch.FloatTensor(np.random.rand(queue.shape[0])).cuda()
-    #     #         neg_lambdas = neg_lambdas.view(queue.shape[0], 1)
-
-    #     #     indices = torch.randperm(queue.shape[0]).cuda()
-    #     #     queue = neg_lambdas * queue + (1 - neg_lambdas) * queue[indices]
-
-    #     #     if self.post_norm:
-    #     #         queue = F.normalize(queue, dim=1)
-
-    #     if not self.theta:
-    #         l_pos = torch.einsum("nc,nc->n", [q, k]).unsqueeze(-1) # euc
-    #         l_neg = torch.einsum("nc,ck->nk", [q, queue]) # euc
-    #     else:
-    #         k = self.tp(k)
-    #         l_pos = -self.hyperbolic_dis(q, k) # hyp
-    #         l_neg = -self.hyperbolic_dis(q.unsqueeze(1), queue.T.unsqueeze(0)).squeeze()
-
-
-    #     # logits: Nx(1+K)
-    #     logits = torch.cat([l_pos, l_neg], dim=1)
-
-    #     # apply temperature
-    #     logits /= self.T
-
-    #     # labels: positive key indicators
-    #     labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
-
-    #     # dequeue and enqueue
-    #     self._dequeue_and_enqueue(k)
-
-    #     moco_loss = self.loss(logits, labels)
-    #     #koleo_loss = 30*self.koleo_loss(logits)
-    #     #koleo_loss = 10*self.koleo_loss(logits)
-    #     #loss = moco_loss + koleo_loss
-    #     loss = moco_loss
-    #     #moco_loss = self.loss(logits, labels)
-    #     #max_non_match_sim = torch.max(l_neg, dim=1)[0] # shape (256, 65536) -> (256,)
-    #     #hardneg_loss = -(1-max_non_match_sim).clamp(min=1e-3).log().mean()
-    #     #print(hardneg_loss)
-    #     #loss = moco_loss + hardneg_loss * 3
-    #     stats = {
-    #                 "positive_sim": l_pos.mean(),
-    #                 "negative_sim": l_neg.mean(),
-    #                 "nearest_negative_sim": torch.mean(torch.max(l_neg, dim=1)[0]),
-    #                 "center_l2_norm": q.mean(dim=0).pow(2).sum().sqrt(),
-    #                 "Moco loss": moco_loss,
-    #             }
-        
-    #     return euc_q, q, loss, stats
 
     def loss(self, logits, labels):
         criterion = nn.CrossEntropyLoss().cuda()
@@ -383,35 +214,3 @@ def concat_all_gather(tensor):
 
     output = torch.cat(tensors_gather, dim=0)
     return output
-
-class KoLeoLoss(nn.Module):
-    """Kozachenko-Leonenko entropic loss regularizer from Sablayrolles et al. - 2018 - Spreading vectors for similarity search"""
-
-    def __init__(self):
-        super().__init__()
-        self.pdist = nn.PairwiseDistance(2, eps=1e-8)
-
-    def pairwise_NNs_inner(self, x):
-        """
-        Pairwise nearest neighbors for L2-normalized vectors.
-        Uses Torch rather than Faiss to remain on GPU.
-        """
-        # parwise dot products (= inverse distance)
-        dots = torch.mm(x, x.t())
-        n = x.shape[0]
-        dots.view(-1)[:: (n + 1)].fill_(-1)  # Trick to fill diagonal with -1
-        # max inner prod -> min distance
-        _, I = torch.max(dots, dim=1)  # noqa: E741
-        return I
-
-    def forward(self, student_output, eps=1e-8):
-        """
-        Args:
-            student_output (BxD): backbone output of student
-        """
-        with torch.cuda.amp.autocast(enabled=False):
-            student_output = F.normalize(student_output, eps=eps, p=2, dim=-1)
-            I = self.pairwise_NNs_inner(student_output)  # noqa: E741
-            distances = self.pdist(student_output, student_output[I])  # BxD, BxD -> B
-            loss = -torch.log(distances + eps).mean()
-        return loss
