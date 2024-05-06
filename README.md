@@ -17,6 +17,73 @@ The official repository for Relational Self-supervised Distillation with Compact
 Detection 2023)
 - CD10K(copydays + 10k distractors)
 
+## Performances
+<table style="margin: auto">
+  <tr>
+    <th>Method</th>
+    <th>Network</th>
+    <th># of<br />params[M]</th>
+    <th>Feature Size</th>
+    <th>µAPsn</th>
+  </tr>
+  <tr>
+    <td>DINO</td>
+    <td align="right">ViT-B/16</td>
+    <td align="right">85.8</td>
+    <td align="right">1536</td>
+    <td align="right">53.8</td>
+  </tr>
+  <tr>
+    <td>SSCD</td>
+    <td align="right">ResNet-50</td>
+    <td align="right">24.6</td>
+    <td align="right">512</td>
+    <td align="right">72.5</td>
+  </tr>
+  <tr>
+    <td>SSCD</td>
+    <td align="right">EFF-B0</td>
+    <td align="right">4.7</td>
+    <td align="right">512</td>
+    <td align="right">61.1</td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
+    <td align="right">EFF-B0</td>
+    <td align="right">4.7</td>
+    <td align="right">256</td>
+    <td align="right"> <strong>65.7</strong></td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
+    <td align="right">MobileNet-V3</td>
+    <td align="right">4.9</td>
+    <td align="right">256</td>
+    <td align="right"><strong>65.6</strong></td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
+    <td align="right">FastViT-T12</td>
+    <td align="right">6.8</td>
+    <td align="right">256</td>
+    <td align="right"><strong>67.4</strong></td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
+    <td align="right">EFF-B0</td>
+    <td align="right">4.7</td>
+    <td align="right">128</td>
+    <td align="right">61.1</td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
+    <td align="right">EFF-B0</td>
+    <td align="right">4.7</td>
+    <td align="right">64</td>
+    <td align="right">53.5</td>
+  </tr>
+</table>
+
 ## Requirements
 
 ### Installation
