@@ -58,7 +58,7 @@ Detection 2023)
   </tr>
   <tr>
     <td>RDCD(ours)</td>
-    <td align="right">MobileNet-V3</td>
+    <td align="right">Mobile-V3</td>
     <td align="right">4.9</td>
     <td align="right">256</td>
     <td align="right"><strong>65.6</strong></td>
