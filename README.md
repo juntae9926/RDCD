@@ -25,6 +25,7 @@ Detection 2023)
     <th># of<br />params[M]</th>
     <th>Feature Size</th>
     <th>µAPsn</th>
+    <th>download</th>
   </tr>
   <tr>
     <td>DINO</td>
@@ -53,6 +54,7 @@ Detection 2023)
     <td align="right">4.7</td>
     <td align="right">256</td>
     <td align="right"> <strong>65.7</strong></td>
+    <td><a href="https://drive.google.com/file/d/1LAWfP8d3_voxvmHrTRdCGIkN49fCAp-6/view?usp=drive_link">link</a></td>
   </tr>
   <tr>
     <td>RDCD(ours)</td>
@@ -74,6 +76,7 @@ Detection 2023)
     <td align="right">4.7</td>
     <td align="right">128</td>
     <td align="right">61.1</td>
+    <td><a href="https://drive.google.com/file/d/1u5T50kFOzaLlS-Q9stWLWw0E8WS7BYnO/view?usp=drive_link">link</a></td>
   </tr>
   <tr>
     <td>RDCD(ours)</td>
@@ -81,6 +84,7 @@ Detection 2023)
     <td align="right">4.7</td>
     <td align="right">64</td>
     <td align="right">53.5</td>
+    <td><a href="https://drive.google.com/file/d/1k3G-xK4XxLlkrJAk_grYENNiKD6zSEBS/view?usp=drive_link">link</a></td>
   </tr>
 </table>
 
