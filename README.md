@@ -52,23 +52,9 @@ Detection 2023)
     <td>RDCD(ours)</td>
     <td align="right">EFF-B0</td>
     <td align="right">4.7</td>
-    <td align="right">256</td>
-    <td align="right"> <strong>65.7</strong></td>
-    <td><a href="https://drive.google.com/file/d/1LAWfP8d3_voxvmHrTRdCGIkN49fCAp-6/view?usp=drive_link">link</a></td>
-  </tr>
-  <tr>
-    <td>RDCD(ours)</td>
-    <td align="right">Mobile-V3</td>
-    <td align="right">4.9</td>
-    <td align="right">256</td>
-    <td align="right"><strong>65.6</strong></td>
-  </tr>
-  <tr>
-    <td>RDCD(ours)</td>
-    <td align="right">FastViT-T12</td>
-    <td align="right">6.8</td>
-    <td align="right">256</td>
-    <td align="right"><strong>67.4</strong></td>
+    <td align="right">64</td>
+    <td align="right">53.5</td>
+    <td><a href="https://drive.google.com/file/d/1k3G-xK4XxLlkrJAk_grYENNiKD6zSEBS/view?usp=drive_link">link</a></td>
   </tr>
   <tr>
     <td>RDCD(ours)</td>
@@ -80,11 +66,25 @@ Detection 2023)
   </tr>
   <tr>
     <td>RDCD(ours)</td>
+    <td align="right">Mobile-V3</td>
+    <td align="right">4.9</td>
+    <td align="right">256</td>
+    <td align="right"><strong>65.6</strong></td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
     <td align="right">EFF-B0</td>
     <td align="right">4.7</td>
-    <td align="right">64</td>
-    <td align="right">53.5</td>
-    <td><a href="https://drive.google.com/file/d/1k3G-xK4XxLlkrJAk_grYENNiKD6zSEBS/view?usp=drive_link">link</a></td>
+    <td align="right">256</td>
+    <td align="right"> <strong>65.7</strong></td>
+    <td><a href="https://drive.google.com/file/d/1LAWfP8d3_voxvmHrTRdCGIkN49fCAp-6/view?usp=drive_link">link</a></td>
+  </tr>
+  <tr>
+    <td>RDCD(ours)</td>
+    <td align="right">FastViT-T12</td>
+    <td align="right">6.8</td>
+    <td align="right">256</td>
+    <td align="right"><strong>67.4</strong></td>
   </tr>
 </table>
 
