@@ -133,3 +133,17 @@ sh disc_eval.sh
 ## Acknowledgement
 
 Codebase from "[SSCD](https://github.com/facebookresearch/sscd-copy-detection)" , [pytorch-image-models](https://github.com/rwightman/pytorch-image-models)
+
+## Citation
+
+If you find this repository useful, please consider giving a star :star: and please cite as:
+
+
+```
+@inproceedings{kim2025relational,
+  title={Relational Self-supervised Distillation with Compact Descriptors for Image Copy Detection},
+  author={Kim, Juntae and Woo, Sungwon and Nang, Jongho},
+  booktitle={Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision},
+  year={2025}
+}
+```
